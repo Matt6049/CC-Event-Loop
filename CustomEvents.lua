@@ -1,5 +1,7 @@
 local function getEventTable()
     local Event = {
+        subscribers = {},
+
         fire = function(self, ...) 
             for handler, _ in pairs(self.subscribers) do
                 handler(...);
