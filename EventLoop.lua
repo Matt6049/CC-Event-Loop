@@ -1,4 +1,4 @@
-local Event = require("CustomEvents");
+local Event = require("Event");
 local Timer = require("Timer");
 
 local EventLoop = {
