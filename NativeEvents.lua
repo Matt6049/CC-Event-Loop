@@ -1,3 +1,4 @@
+local Event = require("Event");
 return {
     alarm = Event:new(),
     char = Event:new(),
