@@ -14,13 +14,14 @@ local Event = {
     unsubscribe = function(self, handler) 
         self.subscribers[handler] = nil;
     end
+    
 }
 
 function Event:new()
     local instance = setmetatable({
         subscribers = {}
     }, {
-        __index = Event
+        __index = self
     });
 
     return instance;
