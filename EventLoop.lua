@@ -1,41 +1,8 @@
-local Event = require("Event");
+local NativeEvents = require("NativeEvents");
 local Timer = require("Timer");
 
 local EventLoop = {
-    alarm = Event:new(),
-    char = Event:new(),
-    computer_command = Event:new(),
-    disk = Event:new(),
-    disk_eject = Event:new(),
-    file_transfer = Event:new(),
-    http_check = Event:new(),
-    http_failure = Event:new(),
-    http_success = Event:new(),
-    key = Event:new(),
-    key_up = Event:new(),
-    modem_message = Event:new(),
-    monitor_resize = Event:new(),
-    monitor_touch = Event:new(),
-    mouse_click = Event:new(),
-    mouse_drag = Event:new(),
-    mouse_scroll = Event:new(),
-    mouse_up = Event:new(),
-    paste = Event:new(),
-    peripheral = Event:new(),
-    peripheral_detach = Event:new(),
-    rednet_message = Event:new(),
-    redstone = Event:new(),
-    setting_changed = Event:new(),
-    speaker_audio_empty = Event:new(),
-    task_complete = Event:new(),
-    term_resize = Event:new(),
-    terminate = Event:new(),
-    tick = Event:new(),
-    turtle_inventory = Event:new(),
-    websocket_closed = Event:new(),
-    websocket_failure = Event:new(),
-    websocket_message = Event:new(),
-    websocket_success = Event:new(),
+
 }
 
 function EventLoop:pollCCEvents()
@@ -45,9 +12,9 @@ function EventLoop:pollCCEvents()
         eventData = {os.pullEvent();}
         eventName = table.remove(eventData, 1);
         if(eventName == "timer") then break end;
-        self[eventName]:fire(table.unpack(eventData));
+        NativeEvents[eventName]:fire(table.unpack(eventData));
     end
-    self["tick"]:fire();
+    NativeEvents["tick"]:fire();
 end
 
 function EventLoop:tickTimers()
