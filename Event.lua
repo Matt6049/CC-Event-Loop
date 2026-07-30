@@ -1,18 +1,5 @@
-local function createPartitions(weights)
-    local hashBase = -math.pow(2, 52);
-    local totalWeight, partitionBases = 0, {hashBase};
-    for i, weight in ipairs(weights) do
-        totalWeight = totalWeight + weight;
-    end
-    for i, weight in ipairs(weights) do
-        local ratio = weight/totalWeight;
-        local assignedSpace = math.floor(-hashBase*ratio);
-        partitionBases[i+1] = partitionBases[i]+assignedSpace;
-    end
-    partitionBases[#partitionBases] = nil;
-    return partitionBases;
-end
-local idHead, unsubHead, onceHead = table.unpack(createPartitions({2, 1, 1}));
+
+local idHead, unsubHead, onceHead = -math.pow(2, 52), -math.pow(2, 51), -math.pow(2, 50);
 local _idNext, _unsubNext, _onceNext, _onceHead = {}, {}, {}, {};
 local _subNext, _queuedFireCount = {}, {};
 
@@ -21,8 +8,8 @@ local _subNext, _queuedFireCount = {}, {};
 --Array:    | 0: IndexToId, 1: Handler |
 --Hashsets: | 0: IdToIndex, 1: IsAlive | 0: ToUnsub | 0: Once |
 --Yes, empty table keys are better than string keys. No, I don't know why.
---This somehow manages a 5x performance improvement as compared to hashsets.
 
+--This Event implementation somehow manages a 5x performance improvement as compared to hashsets.
 ---@class Event
 local Event = {
     fire = function(self, ...)
@@ -46,7 +33,7 @@ local Event = {
             end
             self[_onceHead] = onceNext;
 
-            for i=1, self[_subNext]-2, 2 do
+            for i=2, self[_subNext]-1, 2 do
                 self[i](...);
             end
 
@@ -56,6 +43,7 @@ local Event = {
     end,
 
     subscribe = function(self, handler)
+        if(type(handler) ~= "function") then error("Event:subscribe expected type: \"function\". Received: \""..type(handler).."\""); end
         local subIndex, id = self[_subNext], self[_idNext];
 
         self[subIndex], self[subIndex+1] = id, handler;
@@ -69,9 +57,9 @@ local Event = {
     ---@param self Event
     ---@param id integer Handle returned by the subscribe method. This is a key to the IdToIndex hashmap.
     unsubscribe = function(self, id)
-        local alive = self[id];
+        local alive = self[id+1];
         if(alive) then
-            self[id] = nil;
+            self[id+1] = nil;
             local unsubIndex = self[_unsubNext];
             self[unsubIndex] = id;
 
@@ -80,9 +68,10 @@ local Event = {
     end,
 
     clearUnsubQueue = function(self)
-        local subTail, unsubTail = self[_subNext]-2, self[_unsubNext]-1;
+        local subTail, unsubTail = self[_subNext], self[_unsubNext]-1;
         local id, index, swapId;
         for i=unsubHead, unsubTail do
+            subTail = subTail - 2;
             id = self[i];
             index = self[id];
             if(index ~= subTail) then
@@ -91,13 +80,13 @@ local Event = {
                 self[swapId] = index;
             end
             self[subTail], self[subTail+1], self[id], self[i] = nil, nil, nil, nil;
-            subTail = subTail - 2;
         end
         self[_subNext] = subTail;
         self[_unsubNext] = unsubHead;
     end,
 
     once = function(self, handler)
+        if(type(handler) ~= "function") then error("Event:once expected type: \"function\". Received: \""..type(handler).."\""); end
         local onceIndex = self[_onceNext];
         self[onceIndex] = handler;
         self[_onceNext] = onceIndex+1;
