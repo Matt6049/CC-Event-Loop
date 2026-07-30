@@ -1,7 +1,8 @@
 local min = -math.pow(2, 52);
-local _count = {};
+local _subCount = {};
 local _unsubCount = {};
 local _maxId = {};
+local _fireQueueLen = {};
 
 --CONVENTION:
 --Handlers are stored in index-1. Their ID is stored in index.
@@ -12,59 +13,81 @@ local _maxId = {};
 
 --Yes, empty table keys are better than string keys. No, I don't know why.
 --This somehow manages a 5x performance improvement as compared to hashsets.
+
+---@class Event
 local Event = {
     fire = function(self, ...)
-        local unsubCount = self[_unsubCount];
-        if(unsubCount > 0) then
-            self:clearUnsubQueue(unsubCount);
-        end
+        local fireQueueLen = self[_fireQueueLen] + 1;
+        self[_fireQueueLen] = fireQueueLen;
 
-        for i=self[_count]-1, 1, -2 do
-            self[i](...);
+        if(fireQueueLen > 1) then return; end
+
+        local unsubCount = nil;
+        while fireQueueLen > 0 do
+            unsubCount = self[_unsubCount];
+            if(unsubCount > 0) then
+                self:clearUnsubQueue(unsubCount);
+            end
+            for i=self[_subCount]-1, 1, -2 do
+                self[i](...);
+            end
+
+            fireQueueLen = self[_fireQueueLen] - 1;
+            self[_fireQueueLen] = fireQueueLen;
         end
     end,
 
     subscribe = function(self, handler)
-        local count, maxId = self[_count]+2, self[_maxId]+1;
-        self[_count], self[_maxId] = count, maxId;
-        self[count-1], self[count] = handler, maxId;
-        self[maxId] = count;
+        local subCount, maxId = self[_subCount]+2, self[_maxId]+2;
+        self[_subCount], self[_maxId], self[_maxId-1] = subCount, maxId, true;
+        self[subCount-1], self[subCount] = handler, maxId;
+        self[maxId] = subCount;
         return maxId;
     end,
 
+    ---Adds handler to the unsubscribe queue, deferring its removal until the next event fire.
+    ---@param self Event
+    ---@param id integer Handle returned by the subscribe method. This is a key to the IdToIndex hashmap.
     unsubscribe = function(self, id)
-        local index = self[id];
-        if(index) then
-            self[id] = nil;
+        local alive = self[id-1];
+        if(alive) then
+            self[id-1] = nil;
             local unsubCount = self[_unsubCount];
             self[_unsubCount] = unsubCount + 1;
-            self[0-unsubCount-1] = index;
+            self[0-unsubCount-1] = id;
         end
     end,
 
+    ---Clears the unsubscribe queue.
+    ---@param self any
+    ---@param unsubCount any
     clearUnsubQueue = function(self, unsubCount)
-        local count = self[_count];
-        local index, swapId = nil, nil;
+        local subCount = self[_subCount];
+        local id, index, swapId = nil, nil, nil;
         for i=-1, -unsubCount, -1 do
-            index = self[i];
-            if(index ~= count) then
-                swapId = self[count];
-                self[index-1], self[index] = self[count-1], self[count];
+            id = self[i];
+            index = self[id];
+            if(index ~= subCount) then
+                swapId = self[subCount];
+                self[index-1], self[index] = self[subCount-1], self[subCount];
                 self[swapId] = index;
             end
-            self[count], self[count-1] = nil, nil
-            count = count - 2;
+            self[subCount], self[subCount-1], self[id] = nil, nil, nil;
+            subCount = subCount - 2;
         end
-        self[_count] = count;
+        self[_subCount] = subCount;
         self[_unsubCount] = 0;
-    end
+    end,
+
+    
 }
 
 function Event:new()
     return setmetatable({
         [_maxId] = min,
-        [_count] = 0,
+        [_subCount] = 0,
         [_unsubCount] = 0,
+        [_fireQueueLen] = 0,
     }, {__index=Event});
 end
 
