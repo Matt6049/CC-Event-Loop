@@ -1,8 +1,12 @@
 local min = -math.pow(2, 52);
+local max = 2*(math.pow(2, 51)-1)+1;
 local _subCount = {};
 local _unsubCount = {};
+
 local _maxId = {};
 local _fireQueueLen = {};
+local _onceHead = {};
+local _onceTail = {};
 
 --CONVENTION:
 --Handlers are stored in index-1. Their ID is stored in index.
@@ -22,12 +26,21 @@ local Event = {
 
         if(fireQueueLen > 1) then return; end
 
-        local unsubCount = nil;
+
         while fireQueueLen > 0 do
-            unsubCount = self[_unsubCount];
+            local unsubCount = self[_unsubCount];
+            local onceHead, onceTail = self[_onceHead], self[_onceTail];
+
             if(unsubCount > 0) then
                 self:clearUnsubQueue(unsubCount);
             end
+
+            for i=onceTail, onceHead do
+                self[i](...);
+                self[i] = nil;
+            end
+            self[_onceHead] = onceTail-1;
+
             for i=self[_subCount]-1, 1, -2 do
                 self[i](...);
             end
@@ -39,7 +52,9 @@ local Event = {
 
     subscribe = function(self, handler)
         local subCount, maxId = self[_subCount]+2, self[_maxId]+2;
-        self[_subCount], self[_maxId], self[_maxId-1] = subCount, maxId, true;
+        self[_subCount] = subCount;
+        self[_maxId], self[_maxId-1] = maxId, true;
+
         self[subCount-1], self[subCount] = handler, maxId;
         self[maxId] = subCount;
         return maxId;
@@ -79,7 +94,11 @@ local Event = {
         self[_unsubCount] = 0;
     end,
 
-    
+    once = function(self, handler)
+        local onceTail = self[_onceTail]-1;
+        self[onceTail] = handler;
+        self[_onceTail] = onceTail-1;
+    end
 }
 
 function Event:new()
@@ -88,6 +107,8 @@ function Event:new()
         [_subCount] = 0,
         [_unsubCount] = 0,
         [_fireQueueLen] = 0,
+        [_onceHead] = max-1,
+        [_onceTail] = max,
     }, {__index=Event});
 end
 
