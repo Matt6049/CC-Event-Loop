@@ -9,6 +9,7 @@ local _subNext, _isFiring = {}, {};
 --Yes, empty table keys are better than string keys. No, I don't know why.
 
 --This Event implementation somehow manages a 5x performance improvement as compared to hashsets.
+
 ---@class Event
 local Event = {
     fire = function(self, ...)
@@ -86,6 +87,12 @@ local Event = {
     end
 }
 
+local function readOnlyMetatable()
+    error("Cannot modify Event metatable");
+end
+local meta = {__index = Event, __metatable = readOnlyMetatable};
+---Creates a new Event instance.
+---@return Event
 function Event:new()
     return setmetatable({
         [_subNext] = 1,
@@ -94,7 +101,7 @@ function Event:new()
         [_unsubNext] = unsubHead,
         [_onceHead] = onceHead,
         [_onceNext] = onceHead,
-    }, {__index=Event});
+    }, meta);
 end
 
 return Event;
