@@ -110,7 +110,7 @@ local meta = {
 };
 ---Creates a new Event instance.
 ---@return Event
-function Event:new()
+function Event.new()
     return setmetatable({
         [_subNext] = 1,
         [_isFiring] = false,
