@@ -103,10 +103,11 @@ local Event = {
 local meta = {
     __index = Event, 
     __len = function(self) 
-        local onceLen = self[_onceNext]-self[_onceHead]-2;
-        local subLen = (self[_subNext]-1)/2;
+        local onceLen = self[_onceNext]-self[_onceHead];
+        local subLen = (self[_subNext]-1)*0.5;
         return onceLen+subLen;
-    end};
+    end,
+};
 ---Creates a new Event instance.
 ---@return Event
 function Event:new()
