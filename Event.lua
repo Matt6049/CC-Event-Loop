@@ -1,6 +1,6 @@
 local onceHead, idHead, unsubHead = -math.pow(2, 52), -math.pow(2, 51), -math.pow(2, 50);
 local _idNext, _unsubNext, _onceNext, _onceHead = {}, {}, {}, {};
-local _subNext, _queuedFireCount = {}, {};
+local _subNext, _isFiring = {}, {};
 
 --CONVENTION:
 --Partitioning (both incrementing up):
@@ -12,32 +12,27 @@ local _subNext, _queuedFireCount = {}, {};
 ---@class Event
 local Event = {
     fire = function(self, ...)
-        local queuedFireCount = self[_queuedFireCount] + 1;
-        self[_queuedFireCount] = queuedFireCount;
+        if(self[_isFiring]) then error("Attempted to recursively fire Event"); end
 
-        if(queuedFireCount > 1) then return; end
+        self[_isFiring] = true;
+        local unsubCount = self[_unsubNext] - unsubHead;
+        local onceHead = self[_onceHead]; local onceNext = self[_onceNext];
 
-        while queuedFireCount > 0 do
-            local unsubCount = self[_unsubNext] - unsubHead;
-            local onceHead = self[_onceHead]; local onceNext = self[_onceNext];
-
-            if(unsubCount > 0) then
-                self:clearUnsubQueue();
-            end
-
-            for i=onceHead, onceNext-1 do
-                self[i](...);
-                self[i] = nil;
-            end
-            self[_onceHead] = onceNext;
-
-            for i=2, self[_subNext]-1, 2 do
-                self[i](...);
-            end
-
-            queuedFireCount = self[_queuedFireCount] - 1;
-            self[_queuedFireCount] = queuedFireCount;
+        if(unsubCount > 0) then
+            self:clearUnsubQueue();
         end
+
+        for i=onceHead, onceNext-1 do
+            self[i](...);
+            self[i] = nil;
+        end
+        self[_onceHead] = onceNext;
+
+        for i=2, self[_subNext]-1, 2 do
+            self[i](...);
+        end
+
+        self[_isFiring] = false;
     end,
 
     subscribe = function(self, handler)
