@@ -89,7 +89,7 @@ local Event = {
 function Event:new()
     return setmetatable({
         [_subNext] = 1,
-        [_queuedFireCount] = 0,
+        [_isFiring] = false,
         [_idNext] = idHead,
         [_unsubNext] = unsubHead,
         [_onceHead] = onceHead,
