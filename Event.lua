@@ -100,7 +100,7 @@ local Event = {
     end,
 }
 
-local meta = setmetatable({}, {
+local meta = {
     __index = Event, 
     __len = function(self) 
         local onceLen = self[_onceNext]-self[_onceHead];
@@ -110,7 +110,7 @@ local meta = setmetatable({}, {
     __tostring = function (self)
         return self.name;
     end
-});
+};
 ---Creates a new Event instance.
 ---@return Event
 function Event.new(name)
