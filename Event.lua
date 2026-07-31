@@ -1,5 +1,4 @@
-
-local idHead, unsubHead, onceHead = -math.pow(2, 52), -math.pow(2, 51), -math.pow(2, 50);
+local onceHead, idHead, unsubHead = -math.pow(2, 52), -math.pow(2, 51), -math.pow(2, 50);
 local _idNext, _unsubNext, _onceNext, _onceHead = {}, {}, {}, {};
 local _subNext, _queuedFireCount = {}, {};
 
@@ -18,10 +17,9 @@ local Event = {
 
         if(queuedFireCount > 1) then return; end
 
-
         while queuedFireCount > 0 do
             local unsubCount = self[_unsubNext] - unsubHead;
-            local onceHead, onceNext = self[_onceHead], self[_onceNext];
+            local onceHead = self[_onceHead]; local onceNext = self[_onceNext];
 
             if(unsubCount > 0) then
                 self:clearUnsubQueue();
@@ -44,12 +42,12 @@ local Event = {
 
     subscribe = function(self, handler)
         if(type(handler) ~= "function") then error("Event:subscribe expected type: \"function\". Received: \""..type(handler).."\""); end
-        local subIndex, id = self[_subNext], self[_idNext];
+        local subIndex = self[_subNext]; local id = self[_idNext];
 
-        self[subIndex], self[subIndex+1] = id, handler;
-        self[id], self[id+1] = subIndex, true;
+        self[subIndex] = id; self[subIndex+1] = handler;
+        self[id] = subIndex; self[id+1] = true;
 
-        self[_subNext], self[_idNext] = subIndex+2, id+2;
+        self[_subNext] = subIndex+2; self[_idNext] = id+2;
         return id;
     end,
 
@@ -68,7 +66,7 @@ local Event = {
     end,
 
     clearUnsubQueue = function(self)
-        local subTail, unsubTail = self[_subNext], self[_unsubNext]-1;
+        local subTail = self[_subNext]; local unsubTail = self[_unsubNext]-1;
         local id, index, swapId;
         for i=unsubHead, unsubTail do
             subTail = subTail - 2;
@@ -76,10 +74,10 @@ local Event = {
             index = self[id];
             if(index ~= subTail) then
                 swapId = self[subTail];
-                self[index], self[index+1] = self[subTail], self[subTail+1];
+                self[index] = self[subTail]; self[index+1] = self[subTail+1];
                 self[swapId] = index;
             end
-            self[subTail], self[subTail+1], self[id], self[i] = nil, nil, nil, nil;
+            self[subTail] = nil; self[subTail+1] = nil; self[id] = nil; self[i] = nil;
         end
         self[_subNext] = subTail;
         self[_unsubNext] = unsubHead;
