@@ -10,18 +10,31 @@ local _subNext, _isFiring = {}, {};
 
 --This Event implementation somehow manages a 5x performance improvement as compared to hashsets.
 
+local function clearUnsubQueue(self)
+    local subTail = self[_subNext]; local unsubTail = self[_unsubNext]-1;
+    local id, index, swapId;
+    for i=unsubHead, unsubTail do
+        subTail = subTail - 2;
+        id = self[i];
+        index = self[id];
+        if(index ~= subTail) then
+            swapId = self[subTail];
+            self[index] = self[subTail]; self[index+1] = self[subTail+1];
+            self[swapId] = index;
+        end
+        self[subTail] = nil; self[subTail+1] = nil; self[id] = nil; self[i] = nil;
+    end
+    self[_subNext] = subTail;
+    self[_unsubNext] = unsubHead;
+end
+
 ---@class Event
 local Event = {
     fire = function(self, ...)
         if(self[_isFiring]) then error("Attempted to recursively fire Event"); end
 
         self[_isFiring] = true;
-        local unsubCount = self[_unsubNext] - unsubHead;
         local onceHead = self[_onceHead]; local onceNext = self[_onceNext];
-
-        if(unsubCount > 0) then
-            self:clearUnsubQueue();
-        end
 
         for i=onceHead, onceNext-1 do
             self[i](...);
@@ -29,8 +42,14 @@ local Event = {
         end
         self[_onceHead] = onceNext;
 
-        for i=2, self[_subNext]-1, 2 do
+        local subTail = self[_subNext]-1;
+        for i=2, subTail, 2 do
             self[i](...);
+        end
+
+        local unsubCount = self[_unsubNext] - unsubHead;
+        if(unsubCount > 0) then
+            clearUnsubQueue(self);
         end
 
         self[_isFiring] = false;
@@ -54,29 +73,23 @@ local Event = {
         local alive = self[id+1];
         if(alive) then
             self[id+1] = nil;
-            local unsubIndex = self[_unsubNext];
-            self[unsubIndex] = id;
+            if(self[_isFiring]) then
+                local unsubIndex = self[_unsubNext];
+                self[unsubIndex] = id;
 
-            self[_unsubNext] = unsubIndex + 1;
-        end
-    end,
-
-    clearUnsubQueue = function(self)
-        local subTail = self[_subNext]; local unsubTail = self[_unsubNext]-1;
-        local id, index, swapId;
-        for i=unsubHead, unsubTail do
-            subTail = subTail - 2;
-            id = self[i];
-            index = self[id];
-            if(index ~= subTail) then
-                swapId = self[subTail];
-                self[index] = self[subTail]; self[index+1] = self[subTail+1];
-                self[swapId] = index;
+                self[_unsubNext] = unsubIndex + 1;
+            else
+                local index = self[id];
+                local subTail = self[_subNext]-2;
+                self[_subNext] = subTail;
+                if(index ~= subTail) then
+                    local swapId = self[subTail];
+                    self[index] = self[subTail]; self[index+1] = self[subTail+1];
+                    self[swapId] = index;
+                end
+                self[subTail] = nil; self[subTail+1] = nil; self[id] = nil;
             end
-            self[subTail] = nil; self[subTail+1] = nil; self[id] = nil; self[i] = nil;
         end
-        self[_subNext] = subTail;
-        self[_unsubNext] = unsubHead;
     end,
 
     once = function(self, handler)
@@ -84,13 +97,16 @@ local Event = {
         local onceIndex = self[_onceNext];
         self[onceIndex] = handler;
         self[_onceNext] = onceIndex+1;
-    end
+    end,
 }
 
-local function readOnlyMetatable()
-    error("Cannot modify Event metatable");
-end
-local meta = {__index = Event, __metatable = readOnlyMetatable};
+local meta = {
+    __index = Event, 
+    __len = function(self) 
+        local onceLen = self[_onceNext]-self[_onceHead]-2;
+        local subLen = (self[_subNext]-1)/2;
+        return onceLen+subLen;
+    end};
 ---Creates a new Event instance.
 ---@return Event
 function Event:new()
