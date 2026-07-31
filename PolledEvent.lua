@@ -30,6 +30,7 @@ local function subscribeWrapper(event, handler)
     event:subscribe(handler);
 end
 
+
 ---@class PolledEventType
 ---@field triggerEvent Event Event that triggers a poll.
 ---@field pollPredicate fun(event, weakTable) Predicate that should fire the event if its parent meets the conditions.
@@ -87,17 +88,19 @@ local function newEventWrapper(self, parent)
     self[_pollHandler] = pollHandler;
     self.triggerEvent:once(pollHandler);
 
-    self:newEvent(parent);
+    return self:newEvent(parent);
 end
 
+
+local PolledEvent = {};
 local meta = {__index = PolledEventType};
 local weakTable = {__mode='kv'};
 local weakVal = {__mode='v'};
 ---Creates a new polled event type.
----@param triggerEvent Event Event that triggers a poll.
 ---@param pollPredicate fun(event, parent) Predicate that should fire the event if its parent meets the conditions.
+---@param triggerEvent Event? Event that triggers a poll.
 ---@return PolledEventType
-function PolledEventType.new(pollPredicate, triggerEvent)
+function PolledEvent.newType(pollPredicate, triggerEvent)
     local instance = setmetatable({
         [_subscribedEvents] = {},
         [_subscribedTables] = setmetatable({}, weakVal),
@@ -110,4 +113,4 @@ function PolledEventType.new(pollPredicate, triggerEvent)
     return instance;
 end
 
-return PolledEventType;
+return PolledEvent;
