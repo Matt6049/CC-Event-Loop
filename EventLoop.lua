@@ -1,9 +1,7 @@
-local NativeEvents = require("NativeEvents");
+local NativeEvents = require("GlobalEvents");
 local Timer = require("Timer");
 
-local EventLoop = {
-
-}
+local EventLoop = {};
 
 function EventLoop:pollCCEvents()
     local eventData = {};
@@ -36,6 +34,7 @@ function EventLoop:tickTimers()
 end
 
 function EventLoop:sleep(seconds)
+    error("unimplemented");
     seconds = seconds and math.ceil(seconds*20)/20 or 0.05;
     
 end

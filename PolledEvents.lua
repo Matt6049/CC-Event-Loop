@@ -1,4 +1,4 @@
-local NativeEvents = require("NativeEvents");
+local NativeEvents = require("GlobalEvents");
 local Event = require("Event");
 
 local _type = {};
