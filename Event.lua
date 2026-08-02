@@ -145,4 +145,88 @@ function Event.new(name)
     }, meta);
 end
 
+
+---@param Event Event
+local function tests(Event)
+    local ev = Event.new("test");
+    local testFunFired = false;
+    local receivedArgs = false;
+    local function testFun(...) testFunFired = true; receivedArgs = ...; end;
+
+    local testSuite = {
+        ---Tests event:subscribe for handler insertion.
+        function()
+            local id = assert(ev:subscribe(testFun), "Event subscription doesn't return ID");
+            local index = assert(ev[id], "Event subscription doesn't create idToIndex mapping");
+            assert(ev[index] == id, "Event subscription doesn't correctly create indexToId mapping");
+            assert(ev[index+1] == testFun, "Event subscription doesn't correctly insert event handler");
+        end,    
+        ---Tests event:subscribe for ID incrementation and allocation of new memory
+        function()
+            local id = ev:subscribe(testFun);
+            local id2 = ev:subscribe(function() end);
+            assert(id~=id2, "ID not incremented for new subscribers");
+        end,
+        ---Tests event:once for buffer creation and insertion.
+        function()
+            ev:once(testFun);
+            local buffer = assert(ev[_onceBuffer], "Once buffer not created for events");
+            assert(buffer[1] == testFun, "Handler not inserted into event:once buffer");
+        end,
+        ---Tests event:fire and its arg passing to subscribers.
+        function()
+            local id = ev:subscribe(testFun);
+            ev:fire(true);
+            assert(testFunFired, "Event doesn't call subscribers upon firing");
+            assert(receivedArgs, "Event handler doesn't receive event args");
+        end,
+        ---Tests event:fire for one-time subscribers, as well as buffer deletion afterwards
+        function()
+            ev:once(testFun);
+            ev:fire(true);
+            assert(testFunFired, "Event doesn't call event:once subscribers upon firing");
+            assert(receivedArgs, "Event doesn't pass args to event:once subscribers upon firing");
+            assert(not ev[_onceBuffer], "Event doesn't clean up event:once buffer after firing");
+        end,
+        ---Tests event:unsubscribe for handlers, seeing if they still evaluate despite that.
+        function()
+            local id = ev:subscribe(testFun);
+            ev:unsubscribe(id);
+            ev:fire();
+            assert(not testFunFired, "Event doesn't unsubscribe handlers correctly");
+        end,
+        ---Tests event:unsubscribe swap and pop.
+        function()
+            local id = ev:subscribe(testFun);
+            local fun2 = function() end;
+            local id2 = ev:subscribe(fun2);
+            local index = ev[id];
+            local index2 = ev[id2];
+            ev:unsubscribe(id);
+            assert(index == ev[id2], "idToIndex mappings not swapped on unsubscribe");
+            assert(ev[index] == id2, "indexToId mappings not swapped on unsubscribe");
+            assert(not ev[index2+1], "Last handler not popped on unsubscribe");
+        end,
+        ---Tests event:unsubscribe subscriber list mutation prevention, and unsubscribe queue clearing.
+        function()
+            local id;
+            ev:subscribe(function() ev:unsubscribe(id); end);
+            id = ev:subscribe(testFun);
+            ev:subscribe(function() 
+                assert(ev[_unsubBuffer],
+                "Event unsub buffer not correctly initialized when deferring unsubscribes") 
+            end);
+            ev:fire(true);
+            assert(not testFunFired, "event:subscribe during event:fire mutates the subscriber list");
+            assert(not ev[_unsubBuffer], "Event does not clear the unsub queue after running deferred unsubscribes");
+        end
+    };
+    for i, test in ipairs(testSuite) do
+        ev = Event.new("test");
+        testFunFired = false; receivedArgs = false;
+        test();
+    end
+end
+tests(Event);
+
 return Event;
