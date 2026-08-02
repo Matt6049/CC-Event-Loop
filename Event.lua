@@ -53,7 +53,7 @@ local Event = {
             end
         end
         
-        local subTail = self[_subNext]-arrayIncrement;
+        local subTail = self[_subNext]-arrayIncrement+1;
         for i=2, subTail, arrayIncrement do
             self[i](...);
         end
