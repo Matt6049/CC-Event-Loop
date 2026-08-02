@@ -9,7 +9,7 @@ local _onceBuffer, _unsubBuffer = {}, {};
 --IdToIndex points to column IndexToId. SubNext also points to IndexToId.
 --IdToIndex and isAlive stay static and get their values changed.
 --IndexToId and Handler get moved around.
---Yes, empty table keys are better than string keys. No, I don't know why.
+--Yes, empty table keys are better than string keys. Apparently strings do not get cached and identity keys do.
 
 local function clearUnsubQueue(self, unsubBuffer)
     local subTail = self[_subNext];
@@ -133,7 +133,7 @@ local meta = {
     __index = Event, 
     __len = function(self) 
         local onceLen = self[_onceNext]-1;
-        local subLen = (self[_subNext]+1-arrayIncrement)/arrayIncrement;
+        local subLen = (self[_subNext]-1)/arrayIncrement;
         return onceLen+subLen;
     end,
     __tostring = function (self)
