@@ -8,7 +8,6 @@ local _onceBuffer, _unsubBuffer = 5, 6;
 
 --IndexToId points to IdToIndex column and vice versa.
 --Both get recycled for new subscribers upon unsubscription, their mappings change, however.
---Yes, empty table keys are better than string keys. Apparently strings do not get cached and identity keys do.
 --Please spray me with water or something if I decide to try to refactor this again
 
 local function clearUnsubQueue(self, unsubBuffer)
@@ -128,7 +127,7 @@ local Event = {
     ---Unsubscribes every handler, allowing the event and its handlers to be collected.
     ---@param self Event
     destroy = function(self)
-        for i=1, self[_subNext]+1-arrayIncrement, arrayIncrement do
+        for i=8, self[_subNext]+1-arrayIncrement, arrayIncrement do
             self[i] = nil;
         end
         self[_onceBuffer] = nil;
