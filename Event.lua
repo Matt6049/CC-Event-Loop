@@ -1,12 +1,10 @@
-local min, arrayIncrement, hashIncrement = -math.pow(2, 31), 4, 3;
-local onceBase, unsubBase = min+0, min+2;
-local _arrayLen, _subNext, _onceNext, _onceBufferUsed, _unsubNext, _isFiring = {}, {}, {}, {}, {}, {};
-
+local arrayIncrement = 3;
+local _arrayLen, _subNext, _onceNext, _isFiring = {}, {}, {}, {};
+local _onceBuffer, _unsubBuffer = {}, {};
 --CONVENTION:
 --Partitioning (both incrementing up):
---          |       0           1             2              3      |
--- Array:   | 0: IndexToId, 1: Handler | 0: IdToIndex,  1: isAlive  | 
--- -2^31:   | 0: Once1,     1: Once2   | 0: UnsubQueue |
+--          |       0           1             2      |
+-- Array:   | 0: IndexToId, 1: Handler | 0: IdToIndex|
 
 --IdToIndex points to column IndexToId. SubNext also points to IndexToId.
 --IdToIndex and isAlive stay static and get their values changed.
@@ -15,10 +13,10 @@ local _arrayLen, _subNext, _onceNext, _onceBufferUsed, _unsubNext, _isFiring = {
 
 --This Event implementation manages a 5x performance improvement as compared to hashsets.
 
-local function clearUnsubQueue(self)
-    local subTail = self[_subNext]-arrayIncrement; local unsubTail = self[_unsubNext]-hashIncrement;
-    for unsub=unsubBase, unsubTail, hashIncrement do
-        local unsubId = self[unsub]; self[unsub] = nil;
+local function clearUnsubQueue(self, unsubBuffer)
+    local subTail = self[_subNext];
+    for unsubId, _ in pairs(unsubBuffer) do
+        subTail = subTail - arrayIncrement;
         local swapId = self[subTail];
         if(unsubId ~= swapId) then
             local index = self[unsubId];
@@ -27,10 +25,20 @@ local function clearUnsubQueue(self)
             self[index] = swapId; self[subTail] = unsubId;  --their locations changed, so they point to diff ids now
         end
         self[subTail+1] = nil;
-        subTail = subTail - arrayIncrement;
     end
     self[_subNext] = subTail;
-    self[_unsubNext] = unsubBase;
+end
+
+local function lazyUnsub(self, unsubId)
+    self[_unsubBuffer] = {};
+    self.unsubscribe = nil;
+    return self:unsubscribe(unsubId);
+end
+
+local function lazyOnce(self, handler)
+    self[_onceBuffer] = {};
+    self.once = nil;
+    return self:once(handler);
 end
 
 ---@class Event
@@ -39,15 +47,14 @@ local Event = {
         if(self[_isFiring]) then error("Attempted to recursively fire Event"); end
         self[_isFiring] = true;
 
-        local onceTail = self[_onceNext]-hashIncrement;
-        if(onceTail > min) then
-            local bufferUsed = self[_onceBufferUsed];
-            self[_onceBufferUsed] = 1-bufferUsed; --switch until the next fire so we don't overwrite unhandled ones
-            self[_onceNext] = onceBase + 1-bufferUsed;
-
-            for i=onceBase, onceTail, hashIncrement do
-                self[i](...);
-                self[i] = nil;
+        local onceBuffer = self[_onceBuffer];
+        if(onceBuffer) then
+            local onceTail = self[_onceNext]-1;
+            self[_onceBuffer] = nil;
+            self[_onceNext] = 1;
+            self.once = lazyOnce;
+            for i=1, onceTail do
+                onceBuffer[i](...);
             end
         end
         
@@ -57,10 +64,11 @@ local Event = {
         end
         self[_isFiring] = false;
 
-
-        local unsubCount = self[_unsubNext] - unsubBase;
-        if(unsubCount > 0) then
-            return clearUnsubQueue(self);
+        local unsubBuffer = self[_unsubBuffer];
+        if(unsubBuffer) then
+            self[_unsubBuffer] = nil;
+            self.unsubscribe = lazyUnsub;
+            return clearUnsubQueue(self, unsubBuffer);
         end
     end,
 
@@ -80,7 +88,7 @@ local Event = {
         else
             id = self[subIndex];
         end
-        self[subIndex+1] = handler; self[id+1] = true;
+        self[subIndex+1] = handler;
 
         self[_subNext] = subIndex+arrayIncrement;
         return id;
@@ -90,20 +98,17 @@ local Event = {
     ---@param self Event
     ---@param unsubId integer Handle returned by the subscribe method. This is a key to the IdToIndex hashmap.
     unsubscribe = function(self, unsubId)
-        local alive = self[unsubId+1];
-        if(alive) then
-            self[unsubId+1] = false;
+        local unsubs = self[_unsubBuffer];
+        local index = self[unsubId];
+        if(not unsubs[unsubId] and self[index+1]) then
             if(self[_isFiring]) then
-                local unsubIndex = self[_unsubNext];
-                self[unsubIndex] = unsubId;
-                self[_unsubNext] = unsubIndex + hashIncrement;
+                unsubs[unsubId] = true;
             else
                 local subTail = self[_subNext]-arrayIncrement;
                 self[_subNext] = subTail;
 
                 local swapId = self[subTail];
                 if(unsubId ~= swapId) then
-                    local index = self[unsubId];
                     self[index+1] = self[subTail+1]; --swap subscribers
                     self[unsubId] = subTail; self[swapId] = index;
                     self[index] = swapId; self[subTail] = unsubId;  --their locations changed, so they point to diff ids now
@@ -116,16 +121,16 @@ local Event = {
     once = function(self, handler)
         if(type(handler) ~= "function") then error("Event:once expected type: \"function\". Received: \""..type(handler).."\""); end
         local onceIndex = self[_onceNext];
-        self[onceIndex] = handler;
-        self[_onceNext] = onceIndex+hashIncrement;
+        self[_onceBuffer][onceIndex] = handler;
+        self[_onceNext] = onceIndex+1;
     end,
 }
 
 local meta = {
     __index = Event, 
     __len = function(self) 
-        local onceLen = (self[_onceNext]-onceBase-self[_onceBufferUsed])/hashIncrement;
-        local subLen = (self[_subNext]-2)/arrayIncrement;
+        local onceLen = self[_onceNext]-1;
+        local subLen = (self[_subNext]+1-arrayIncrement)/arrayIncrement;
         return onceLen+subLen;
     end,
     __tostring = function (self)
@@ -137,12 +142,12 @@ local meta = {
 function Event.new(name) 
     return setmetatable({
         name = name,
+        once = lazyOnce,
+        unsubscribe = lazyUnsub,
         [_arrayLen] = 0,
         [_subNext] = 1,
         [_isFiring] = false,
-        [_unsubNext] = unsubBase,
-        [_onceNext] = onceBase,
-        [_onceBufferUsed] = 0
+        [_onceNext] = 1,
     }, meta);
 end
 
