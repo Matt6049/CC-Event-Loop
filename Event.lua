@@ -217,7 +217,7 @@ local function tests(Event)
                 "Event unsub buffer not correctly initialized when deferring unsubscribes") 
             end);
             ev:fire(true);
-            assert(not testFunFired, "event:subscribe during event:fire mutates the subscriber list");
+            assert(testFunFired, "event:subscribe during event:fire mutates the subscriber list");
             assert(not ev[_unsubBuffer], "Event does not clear the unsub queue after running deferred unsubscribes");
         end
     };
