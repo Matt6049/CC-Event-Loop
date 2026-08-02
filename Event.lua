@@ -11,8 +11,6 @@ local _onceBuffer, _unsubBuffer = {}, {};
 --IndexToId and Handler get moved around.
 --Yes, empty table keys are better than string keys. No, I don't know why.
 
---This Event implementation manages a 5x performance improvement as compared to hashsets.
-
 local function clearUnsubQueue(self, unsubBuffer)
     local subTail = self[_subNext];
     for unsubId, _ in pairs(unsubBuffer) do
@@ -29,15 +27,18 @@ local function clearUnsubQueue(self, unsubBuffer)
     self[_subNext] = subTail;
 end
 
+local _realUnsub, _realOnce = {}, {};
 local function lazyUnsub(self, unsubId)
     self[_unsubBuffer] = {};
-    self.unsubscribe = nil;
+    self.unsubscribe = self[_realUnsub];
+    self[_realUnsub] = nil;
     return self:unsubscribe(unsubId);
 end
 
 local function lazyOnce(self, handler)
     self[_onceBuffer] = {};
-    self.once = nil;
+    self.once = self[_realOnce];
+    self[_realOnce] = nil;
     return self:once(handler);
 end
 
@@ -52,6 +53,7 @@ local Event = {
             local onceTail = self[_onceNext]-1;
             self[_onceBuffer] = nil;
             self[_onceNext] = 1;
+            self[_realOnce] = self.once;
             self.once = lazyOnce;
             for i=1, onceTail do
                 onceBuffer[i](...);
@@ -67,6 +69,7 @@ local Event = {
         local unsubBuffer = self[_unsubBuffer];
         if(unsubBuffer) then
             self[_unsubBuffer] = nil;
+            self[_realUnsub] = self.unsubscribe;
             self.unsubscribe = lazyUnsub;
             return clearUnsubQueue(self, unsubBuffer);
         end
