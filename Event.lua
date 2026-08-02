@@ -115,6 +115,14 @@ local Event = {
         self[_onceBuffer][onceIndex] = handler;
         self[_onceNext] = onceIndex+1;
     end,
+
+    destroy = function(self)
+        for i=2, self[_subNext]+1-arrayIncrement, arrayIncrement do
+            self[i] = nil;
+        end
+        self[_onceBuffer] = nil;
+        self[_unsubBuffer] = nil;
+    end
 }
 
 local meta = {
