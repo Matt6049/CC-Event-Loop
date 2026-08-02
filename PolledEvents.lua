@@ -5,9 +5,11 @@ local _type = {};
 local _subscribedEvents, _subscribedTables, _unsubscribed = {}, {}, {};
 local _pollHandler, _indexNext = {}, {};
 
+local _realOnce = {}; local _realSub = {};
 local function unwrap(event)
-    event.once = nil;
-    event.subscribe = nil;
+    event.once = event[_realOnce];
+    event.subscribe = event[_realSub];
+    event[_realOnce] = nil; event[_realSub] = nil;
     local type = event[_type];
     local unsubscribed = type[_unsubscribed];
     local parent = unsubscribed[event];
@@ -22,12 +24,12 @@ end
 
 local function onceWrapper(event, handler)
     unwrap(event);
-    event:once(handler);
+    return event:once(handler);
 end
 
 local function subscribeWrapper(event, handler)
     unwrap(event);
-    event:subscribe(handler);
+    return event:subscribe(handler);
 end
 
 
