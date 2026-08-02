@@ -2,13 +2,12 @@ local arrayIncrement = 3;
 local _arrayLen, _subNext, _onceNext, _isFiring = {}, {}, {}, {};
 local _onceBuffer, _unsubBuffer = {}, {};
 --CONVENTION:
---Partitioning (both incrementing up):
+--Partitioning:
 --          |       0           1             2      |
 -- Array:   | 0: IndexToId, 1: Handler | 0: IdToIndex|
 
---IdToIndex points to column IndexToId. SubNext also points to IndexToId.
---IdToIndex and isAlive stay static and get their values changed.
---IndexToId and Handler get moved around.
+--IndexToId points to IdToIndex column and vice versa.
+--Both get recycled for new subscribers upon unsubscription, their mappings change, however.
 --Yes, empty table keys are better than string keys. Apparently strings do not get cached and identity keys do.
 
 local function clearUnsubQueue(self, unsubBuffer)
@@ -27,11 +26,9 @@ local function clearUnsubQueue(self, unsubBuffer)
     self[_subNext] = subTail;
 end
 
-local _realOnce = {};
 local function lazyOnce(self, handler)
     self[_onceBuffer] = {};
-    self.once = self[_realOnce];
-    self[_realOnce] = nil;
+    self.once = nil;
     return self:once(handler);
 end
 
@@ -46,7 +43,6 @@ local Event = {
             local onceTail = self[_onceNext]-1;
             self[_onceBuffer] = nil;
             self[_onceNext] = 1;
-            self[_realOnce] = self.once;
             self.once = lazyOnce;
             for i=1, onceTail do
                 onceBuffer[i](...);

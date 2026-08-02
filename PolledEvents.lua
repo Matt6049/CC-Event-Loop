@@ -10,6 +10,7 @@ local function unwrap(event)
     event.once = event[_realOnce];
     event.subscribe = event[_realSub];
     event[_realOnce] = nil; event[_realSub] = nil;
+    
     local type = event[_type];
     local unsubscribed = type[_unsubscribed];
     local parent = unsubscribed[event];
@@ -41,6 +42,8 @@ local PolledEventType = {
         local event = Event.new();
         self[_unsubscribed][event] = parent;
         event[_type] = self;
+        event[_realSub] = rawget(event, "subscribe");
+        event[_realOnce] = rawget(event, "once");
         event.subscribe = subscribeWrapper;
         event.once = onceWrapper;
         return event;
