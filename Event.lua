@@ -1,6 +1,6 @@
 local arrayIncrement = 3;
-local _arrayLen, _subNext, _onceNext, _isFiring = {}, {}, {}, {};
-local _onceBuffer, _unsubBuffer = {}, {};
+local _arrayLen, _subNext, _onceNext, _isFiring = 1, 2, 3, 4;
+local _onceBuffer, _unsubBuffer = 5, 6;
 --CONVENTION:
 --Partitioning:
 --          |       0           1             2      |
@@ -9,7 +9,7 @@ local _onceBuffer, _unsubBuffer = {}, {};
 --IndexToId points to IdToIndex column and vice versa.
 --Both get recycled for new subscribers upon unsubscription, their mappings change, however.
 --Yes, empty table keys are better than string keys. Apparently strings do not get cached and identity keys do.
---Please spray me with water or something if I decide to try to modify this file again
+--Please spray me with water or something if I decide to try to refactor this again
 
 local function clearUnsubQueue(self, unsubBuffer)
     local subTail = self[_subNext];
@@ -33,6 +33,7 @@ local function lazyOnce(self, handler)
     return self:once(handler);
 end
 
+---High-performance synchronous event.
 ---@class Event
 local Event = {
     ---Fires the event, calling every subscribed handler with the provided event args.
@@ -54,7 +55,7 @@ local Event = {
         end
         
         local subTail = self[_subNext]-arrayIncrement+1;
-        for i=2, subTail, arrayIncrement do
+        for i=8, subTail, arrayIncrement do
             self[i](...);
         end
         self[_isFiring] = false;
@@ -127,7 +128,7 @@ local Event = {
     ---Unsubscribes every handler, allowing the event and its handlers to be collected.
     ---@param self Event
     destroy = function(self)
-        for i=2, self[_subNext]+1-arrayIncrement, arrayIncrement do
+        for i=1, self[_subNext]+1-arrayIncrement, arrayIncrement do
             self[i] = nil;
         end
         self[_onceBuffer] = nil;
@@ -140,7 +141,7 @@ local meta = {
     __len = function(self) 
         local onceLen = self[_onceNext]-1;
         local subLen = (self[_subNext]-1)/arrayIncrement;
-        return onceLen+subLen;
+        return onceLen+subLen-6;
     end,
     __tostring = function (self)
         return self.name;
@@ -152,8 +153,8 @@ function Event.new(name)
     return setmetatable({
         name = name,
         once = lazyOnce,
-        [_arrayLen] = 0,
-        [_subNext] = 1,
+        [_arrayLen] = 6,
+        [_subNext] = 7,
         [_isFiring] = false,
         [_onceNext] = 1,
     }, meta);
