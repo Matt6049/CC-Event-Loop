@@ -27,14 +27,7 @@ local function clearUnsubQueue(self, unsubBuffer)
     self[_subNext] = subTail;
 end
 
-local _realUnsub, _realOnce = {}, {};
-local function lazyUnsub(self, unsubId)
-    self[_unsubBuffer] = {};
-    self.unsubscribe = self[_realUnsub];
-    self[_realUnsub] = nil;
-    return self:unsubscribe(unsubId);
-end
-
+local _realOnce = {};
 local function lazyOnce(self, handler)
     self[_onceBuffer] = {};
     self.once = self[_realOnce];
@@ -69,8 +62,6 @@ local Event = {
         local unsubBuffer = self[_unsubBuffer];
         if(unsubBuffer) then
             self[_unsubBuffer] = nil;
-            self[_realUnsub] = self.unsubscribe;
-            self.unsubscribe = lazyUnsub;
             return clearUnsubQueue(self, unsubBuffer);
         end
     end,
@@ -101,10 +92,11 @@ local Event = {
     ---@param self Event
     ---@param unsubId integer Handle returned by the subscribe method. This is a key to the IdToIndex hashmap.
     unsubscribe = function(self, unsubId)
-        local unsubs = self[_unsubBuffer];
         local index = self[unsubId];
-        if(not unsubs[unsubId] and self[index+1]) then
+        if(index and self[index+1]) then
             if(self[_isFiring]) then
+                local unsubs = self[_unsubBuffer];
+                if(not unsubs) then unsubs = {}; self[_unsubBuffer] = unsubs; end
                 unsubs[unsubId] = true;
             else
                 local subTail = self[_subNext]-arrayIncrement;
@@ -146,7 +138,6 @@ function Event.new(name)
     return setmetatable({
         name = name,
         once = lazyOnce,
-        unsubscribe = lazyUnsub,
         [_arrayLen] = 0,
         [_subNext] = 1,
         [_isFiring] = false,
