@@ -9,6 +9,7 @@ local _onceBuffer, _unsubBuffer = {}, {};
 --IndexToId points to IdToIndex column and vice versa.
 --Both get recycled for new subscribers upon unsubscription, their mappings change, however.
 --Yes, empty table keys are better than string keys. Apparently strings do not get cached and identity keys do.
+--Please spray me with water or something if I decide to try to modify this file again
 
 local function clearUnsubQueue(self, unsubBuffer)
     local subTail = self[_subNext];
@@ -34,6 +35,9 @@ end
 
 ---@class Event
 local Event = {
+    ---Fires the event, calling every subscribed handler with the provided event args.
+    ---@param self Event
+    ---@param ... any Event args to pass to each handler.
     fire = function(self, ...)
         if(self[_isFiring]) then error("Attempted to recursively fire Event"); end
         self[_isFiring] = true;
@@ -62,10 +66,10 @@ local Event = {
         end
     end,
 
-    ---
-    ---@param self any
-    ---@param handler any
-    ---@return number HandlerId
+    ---Subscribes to the event, calling the provided event handler each time the event fires.
+    ---@param self Event
+    ---@param handler fun(...:any): nil Event handler.
+    ---@return number Id Handler's unsubscription ID.
     subscribe = function(self, handler)
         if(type(handler) ~= "function") then error("Event:subscribe expected type: \"function\". Received: \""..type(handler).."\""); end
         local subIndex = self[_subNext]; local arrayLength = self[_arrayLen];
@@ -84,9 +88,10 @@ local Event = {
         return id;
     end,
 
-    ---Adds handler to the unsubscribe queue, deferring its removal until the next event fire.
+    ---Unsubscribes the event under the provided ID.
+    ---Reusing the same ID with this method may lead to undefined behavior.
     ---@param self Event
-    ---@param unsubId integer Handle returned by the subscribe method. This is a key to the IdToIndex hashmap.
+    ---@param unsubId integer Handle returned by the subscribe method.
     unsubscribe = function(self, unsubId)
         local index = self[unsubId];
         if(index and self[index+1]) then
@@ -109,6 +114,9 @@ local Event = {
         end
     end,
 
+    ---Calls the provided handler upon the next time the event fires.
+    ---@param self Event
+    ---@param handler fun(...:any):nil Event handler.
     once = function(self, handler)
         if(type(handler) ~= "function") then error("Event:once expected type: \"function\". Received: \""..type(handler).."\""); end
         local onceIndex = self[_onceNext];
@@ -116,6 +124,8 @@ local Event = {
         self[_onceNext] = onceIndex+1;
     end,
 
+    ---Unsubscribes every handler, allowing the event and its handlers to be collected.
+    ---@param self Event
     destroy = function(self)
         for i=2, self[_subNext]+1-arrayIncrement, arrayIncrement do
             self[i] = nil;
@@ -136,7 +146,7 @@ local meta = {
         return self.name;
     end
 };
----Creates a new Event instance.
+---Creates a new Event instance with the provided name.
 ---@return Event
 function Event.new(name) 
     return setmetatable({
