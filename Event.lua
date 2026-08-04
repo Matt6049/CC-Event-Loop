@@ -26,16 +26,24 @@ local function clearUnsubQueue(self, unsubBuffer)
     self[_subNext] = subTail;
 end
 
+local function realOnce(self, handler)
+    if(type(handler) ~= "function") then error("Event:once expected type: \"function\". Received: \""..type(handler).."\""); end
+    local onceIndex = self[_onceNext];
+    self[_onceBuffer][onceIndex] = handler;
+    self[_onceNext] = onceIndex+1;
+end
+
 local function lazyOnce(self, handler)
     self[_onceBuffer] = {};
-    self.once = nil;
-    return self:once(handler);
+    self.once = realOnce;
+    return realOnce(self, handler);
 end
 
 ---High-performance synchronous event.
 ---@class Event
-local Event = {
+local EventInstance = {
     ---Fires the event, calling every subscribed handler with the provided event args.
+    ---Calling this method from within the event's own handler will raise an error.
     ---@param self Event
     ---@param ... any Event args to pass to each handler.
     fire = function(self, ...)
@@ -47,7 +55,7 @@ local Event = {
             local onceTail = self[_onceNext]-1;
             self[_onceBuffer] = nil;
             self[_onceNext] = 1;
-            self.once = lazyOnce;
+            self.once = nil
             for i=1, onceTail do
                 onceBuffer[i](...);
             end
@@ -115,14 +123,11 @@ local Event = {
     end,
 
     ---Calls the provided handler upon the next time the event fires.
+    ---@diagnostic disable-next-line: undefined-doc-param
     ---@param self Event
+    ---@diagnostic disable-next-line: undefined-doc-param
     ---@param handler fun(...:any):nil Event handler.
-    once = function(self, handler)
-        if(type(handler) ~= "function") then error("Event:once expected type: \"function\". Received: \""..type(handler).."\""); end
-        local onceIndex = self[_onceNext];
-        self[_onceBuffer][onceIndex] = handler;
-        self[_onceNext] = onceIndex+1;
-    end,
+    once = lazyOnce,
 
     ---Unsubscribes every handler, allowing the event and its handlers to be collected.
     ---@param self Event
@@ -135,8 +140,11 @@ local Event = {
     end
 }
 
-local meta = {
-    __index = Event, 
+---High-performance synchronous event.
+---@class Event
+local Event = {};
+local instanceMeta = {
+    __index=EventInstance,
     __len = function(self) 
         local onceLen = self[_onceNext]-1;
         local subLen = (self[_subNext]-1)/arrayIncrement;
@@ -146,19 +154,22 @@ local meta = {
         return self.name;
     end
 };
+local lazyMeta = {__index = function (tab, key)
+    setmetatable(tab, instanceMeta);
+    tab[_arrayLen] = 6
+    tab[_subNext] = 7
+    tab[_isFiring] = false
+    tab[_onceNext] = 1
+    return tab[key];
+end}
+
 ---Creates a new Event instance with the provided name.
 ---@return Event
 function Event.new(name) 
     return setmetatable({
         name = name,
-        once = lazyOnce,
-        [_arrayLen] = 6,
-        [_subNext] = 7,
-        [_isFiring] = false,
-        [_onceNext] = 1,
-    }, meta);
+    }, lazyMeta);
 end
-
 
 ---@param Event Event
 local function tests(Event)
